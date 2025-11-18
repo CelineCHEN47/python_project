@@ -1,5 +1,5 @@
 ## generation model
-in the generation part, implement the preprocessing.py first, it would save those dataset into the data folder. 
+in the generation part, implement the preprocessing.py first, it would save those dataset into the data/email_reply_dataset folder(can set the path manually). 
 
 Then call train.py to implement training. The current code ignore all of the evaluation part to ensure it can run locally.
 
