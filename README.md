@@ -39,7 +39,7 @@ base_model_name = "gpt2"  # Or you can load the model, tokenizer from Folder 2.
 tokenizer = AutoTokenizer.from_pretrained(base_model_name)
 model = AutoModelForCausalLM.from_pretrained(base_model_name)
 
-# Load LoRA adapter
+# Load LoRA adapter  (the key difference from directly call a model)
 lora_path = "./lora_adapter"  # Path to Folder 1
 merged_model = PeftModel.from_pretrained(model, lora_path)
 
