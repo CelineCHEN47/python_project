@@ -115,13 +115,15 @@ def display_spam_result(is_spam, confidence):
         )
 
 
-def save_analysis_to_history(email_subject, is_spam, confidence, reply=None):
+def save_analysis_to_history(email_sender, email_datetime, email_subject, is_spam, confidence, reply=None):
     """Save analysis to session state history"""
     if 'analysis_history' not in st.session_state:
         st.session_state.analysis_history = []
     
     entry = {
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'sender': email_sender,
+        'email_datetime': email_datetime,
         'subject': email_subject,
         'is_spam': is_spam,
         'confidence': confidence,
@@ -154,20 +156,35 @@ def main():
     with tab1:
         st.subheader("Email Analysis")
         
-        # Email input section
-        col1, col2 = st.columns([2, 1])
+        # Email metadata section
+        col1, col2, col3 = st.columns([1.5, 1.5, 1])
         
         with col1:
-            email_subject = st.text_input(
-                "📌 Email Subject",
-                placeholder="Enter the email subject...",
-                key="email_subject"
+            email_sender = st.text_input(
+                "👤 Sender Email",
+                placeholder="sender@example.com",
+                key="email_sender"
             )
         
         with col2:
+            email_datetime = st.text_input(
+                "📅 Date & Time",
+                placeholder="2025-11-19 14:30:00",
+                key="email_datetime",
+                value=datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            )
+        
+        with col3:
             st.write("")  # Spacing
             st.write("")
             analyze_button = st.button("Analyze Email", use_container_width=True, type="primary")
+        
+        # Email subject input
+        email_subject = st.text_input(
+            "📌 Email Subject",
+            placeholder="Enter the email subject...",
+            key="email_subject"
+        )
         
         # Email body input
         email_body = st.text_area(
@@ -181,8 +198,8 @@ def main():
         
         # Analysis section
         if analyze_button:
-            if not email_subject or not email_body:
-                st.error("❌ Please enter both email subject and body!")
+            if not email_sender or not email_subject or not email_body or not email_datetime:
+                st.error("❌ Please enter sender, subject, date & time, and email body!")
             else:
                 with st.spinner("🔄 Analyzing email..."):
                     # Mock spam classification
@@ -202,6 +219,8 @@ def main():
                     
                     # Save to history
                     save_analysis_to_history(
+                        email_sender,
+                        email_datetime,
                         email_subject,
                         is_spam,
                         confidence,
@@ -257,13 +276,14 @@ def main():
             # Display history in reverse chronological order
             for i, entry in enumerate(reversed(st.session_state.analysis_history)):
                 with st.container(border=True):
-                    col1, col2, col3 = st.columns([2, 2, 1])
+                    col1, col2 = st.columns([3, 1])
                     
                     with col1:
+                        st.write(f"**From:** {entry['sender']}")
                         st.write(f"**Subject:** {entry['subject']}")
+                        st.write(f"**Email Date:** {entry['email_datetime']}")
+                        st.write(f"**Analyzed At:** {entry['timestamp']}")
                     with col2:
-                        st.write(f"**Time:** {entry['timestamp']}")
-                    with col3:
                         if entry['is_spam']:
                             st.markdown(
                                 f'<p class="spam-badge spam">SPAM</p>',
