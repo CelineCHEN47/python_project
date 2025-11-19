@@ -8,7 +8,48 @@ This project analyzes emails for spam detection and generates intelligent replie
 ### Backend Components
 - **preprocessing.py**: Preprocesses the DailyDialog dataset into email-style prompt-response pairs
 - **train.py**: Fine-tunes GPT-2/DistilGPT-2 with LoRA for email reply generation
-- **train_0.py**: Alternative training script
+
+### How to call the generation model:
+As i have used the Lora, so the gpt2 model can not be directly called, it should be merged with the Lora.
+
+How to understand the folder: 
+✅Folder 1: Contains `adapter_model.safetensors` and `adapter_config.json`
+a standard LoRA adapter directory. It only stores the LoRA weights and configuration—not the base GPT-2 model.
+
+`adapter_model.safetensors`: LoRA fine-tuned weights.
+`adapter_config.json:` LoRA hyperparameters (e.g., rank, alpha).
+Tokenizer files (`tokenizer.json`, `vocab.json`, `merges.txt`, etc.).
+
+✅ Folder 2: Contains `model.safetensors` and a subfolder `lora_adapter/`
+The files inside should be the main body of our trained model.
+
+`model.safetensors`: Likely the base GPT-2 model weights.
+`lora_adapter/`: Contains the LoRA adapter files.
+Other config and tokenizer files.
+
+#### Way to call it
+I directly share `LoRA Adapter` + `Base Model`, this way is more flexible. (Such as the folder "gpt2(300)")
+
+``` 
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from peft import PeftModel
+
+# Load base model
+base_model_name = "gpt2"  # Or you can load the model, tokenizer from Folder 2.
+tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+model = AutoModelForCausalLM.from_pretrained(base_model_name)
+
+# Load LoRA adapter
+lora_path = "./lora_adapter"  # Path to Folder 1
+merged_model = PeftModel.from_pretrained(model, lora_path)
+
+# Generate text
+input_text = "Hello, how are you?"
+inputs = tokenizer(input_text, return_tensors="pt")
+outputs = merged_model.generate(**inputs, max_new_tokens=50)
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+```
+
 
 ### Frontend
 - **app.py**: Streamlit WebUI for email analysis and reply generation (NEW)
