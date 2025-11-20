@@ -87,75 +87,56 @@ def load_spam_model():
         return None, None
 
 
-class SpamClassifierWrapper:
-    """Wrapper for spam classifier"""
+def predict_spam(model, tokenizer, email_text):
+    """
+    Predict if an email is spam.
+    Returns: (is_spam: bool, confidence: float)
+    """
+    if model is None or tokenizer is None:
+        # Fallback to mock if model not available
+        is_spam = random.choice([True, False])
+        confidence = round(random.uniform(0.7, 0.99), 2)
+        return is_spam, confidence
     
-    def __init__(self):
-        self.model, self.tokenizer = load_spam_model()
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
-    def predict(self, email_text):
-        """
-        Predict if an email is spam.
-        Returns: (is_spam: bool, confidence: float)
-        """
-        if self.model is None or self.tokenizer is None:
-            # Fallback to mock if model not available
-            is_spam = random.choice([True, False])
-            confidence = round(random.uniform(0.7, 0.99), 2)
-            return is_spam, confidence
+    try:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
-        try:
-            # Clean text
-            text = clean_email_text(email_text)
-            
-            # Tokenize
-            inputs = self.tokenizer(
-                text,
-                max_length=512,
-                padding='max_length',
-                truncation=True,
-                return_tensors='pt'
-            )
-            
-            # Move to device
-            inputs = {k: v.to(self.device) for k, v in inputs.items()}
-            
-            # Make prediction
-            with torch.no_grad():
-                outputs = self.model(**inputs)
-                logits = outputs.logits
-                probabilities = torch.softmax(logits, dim=1)
-                prediction = torch.argmax(logits, dim=1).item()
-                confidence = probabilities[0][prediction].item()
-            
-            # Convert to is_spam boolean (1 = spam, 0 = non-spam)
-            is_spam = bool(prediction == 1)
-            
-            return is_spam, confidence
-        except Exception as e:
-            st.warning(f"⚠️ Error in prediction: {e}")
-            # Fallback to mock
-            is_spam = random.choice([True, False])
-            confidence = round(random.uniform(0.7, 0.99), 2)
-            return is_spam, confidence
-
-
-# ==================== Mock Models ====================
-
-class MockSpamClassifier:
-    """Mock spam classifier that returns random predictions"""
-    
-    @staticmethod
-    def predict(email_text):
-        """
-        Predict if an email is spam.
-        Returns: (is_spam: bool, confidence: float)
-        """
+        # Clean text
+        text = clean_email_text(email_text)
+        
+        # Tokenize
+        inputs = tokenizer(
+            text,
+            max_length=512,
+            padding='max_length',
+            truncation=True,
+            return_tensors='pt'
+        )
+        
+        # Move to device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        
+        # Make prediction
+        with torch.no_grad():
+            outputs = model(**inputs)
+            logits = outputs.logits
+            probabilities = torch.softmax(logits, dim=1)
+            prediction = torch.argmax(logits, dim=1).item()
+            confidence = probabilities[0][prediction].item()
+        
+        # Convert to is_spam boolean (1 = spam, 0 = non-spam)
+        is_spam = bool(prediction == 1)
+        
+        return is_spam, confidence
+    except Exception as e:
+        st.warning(f"⚠️ Error in prediction: {e}")
+        # Fallback to mock
         is_spam = random.choice([True, False])
         confidence = round(random.uniform(0.7, 0.99), 2)
         return is_spam, confidence
 
+
+# ==================== Mock Models ====================
 
 class MockLLMReplyGenerator:
     """Mock LLM that generates generic predetermined responses"""
@@ -233,7 +214,7 @@ def save_analysis_to_history(email_sender, email_datetime, email_subject, is_spa
 
 def main():
     # Initialize BERT spam classifier
-    spam_classifier = SpamClassifierWrapper()
+    model, tokenizer = load_spam_model()
     llm_generator = MockLLMReplyGenerator()
     
     # Initialize session state
@@ -300,7 +281,7 @@ def main():
             else:
                 with st.spinner("🔄 Analyzing email..."):
                     # Mock spam classification
-                    is_spam, confidence = spam_classifier.predict(email_body)
+                    is_spam, confidence = predict_spam(model, tokenizer, email_body)
                     st.session_state.analysis_result = {
                         'is_spam': is_spam,
                         'confidence': confidence
@@ -409,20 +390,12 @@ def main():
         st.subheader("Settings & Configuration")
         
         st.write("### Model Configuration")
-        st.info(
-            "**Note:** These are placeholder settings for the current mock implementation. "
-            "Once actual models are integrated, you'll be able to configure them here."
-        )
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.write("#### Spam Detection")
-            spam_model = st.selectbox(
-                "Spam Detection Model",
-                ["BERT-base-uncased (Fine-tuned)", "Bayesian Filter", "Neural Network"],
-                help="Select which model to use for spam detection"
-            )
+            st.info("Using fine-tuned DistilBERT model")
             spam_threshold = st.slider(
                 "Spam Confidence Threshold",
                 min_value=0.0,
@@ -461,20 +434,20 @@ def main():
         st.write("### About")
         st.markdown(
             """
-            **Spam Email Analyzer & Reply Generator v0.2**
+            **Spam Email Analyzer & Reply Generator v0.3**
             
             This application uses AI models to:
-            - 🔍 Detect spam emails with high accuracy using fine-tuned BERT
+            - 🔍 Detect spam emails with high accuracy using fine-tuned DistilBERT
             - 💭 Generate intelligent replies to legitimate emails
             
-            **Current Status:** BERT spam detector active
-            - Spam detection: Fine-tuned BERT model (bert-base-uncased) ✅
+            **Current Status:** DistilBERT spam detector active
+            - Spam detection: Fine-tuned DistilBERT model ✅
             - Reply generation: Generic responses (will be replaced with fine-tuned LLM)
             
             **Technology Stack:**
             - Frontend: Streamlit
             - Backend: Python
-            - Spam Classifier: BERT (Fine-tuned on labeled email dataset)
+            - Spam Classifier: DistilBERT (Fine-tuned on Enron spam dataset)
             - Reply Generator: TBD (Fine-tuned GPT-2/DistilGPT-2)
             """
         )
