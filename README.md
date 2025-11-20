@@ -8,6 +8,14 @@ This project analyzes emails for spam detection and generates intelligent replie
 ### Backend Components
 - **preprocessing.py**: Preprocesses the DailyDialog dataset into email-style prompt-response pairs
 - **train.py**: Fine-tunes GPT-2/DistilGPT-2 with LoRA for email reply generation
+- **bert_classifier_tune.ipynb**: Notebook for fine-tuning BERT for spam classification
+
+### Frontend
+- **app.py**: Streamlit WebUI for email analysis and reply generation (v0.2)
+
+### Data & Models
+- **data/**: Contains datasets for training.
+- **spam_classifier_model/**: Directory where the fine-tuned BERT model should be placed (required for real spam detection in the app).
 
 ### How to call the generation model:
 As i have used the Lora, so the gpt2 model can not be directly called, it should be merged with the Lora.
@@ -30,7 +38,7 @@ Other config and tokenizer files.
 #### Way to call it
 I directly share `LoRA Adapter` + `Base Model`, this way is more flexible. (Such as the folder "gpt2(300)")
 
-``` 
+```python
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 
@@ -49,13 +57,6 @@ inputs = tokenizer(input_text, return_tensors="pt")
 outputs = merged_model.generate(**inputs, max_new_tokens=50)
 print(tokenizer.decode(outputs[0], skip_special_tokens=True))
 ```
-
-
-### Frontend
-- **app.py**: Streamlit WebUI for email analysis and reply generation (NEW)
-
-### Data
-- **data/email_reply_dataset/**: Preprocessed training data for LLM
 
 ## Setup & Usage
 
@@ -79,37 +80,45 @@ python train.py --model_name gpt2 --use_lora
 
 The current code ignores evaluation to ensure it runs locally. Results are saved to `./results/`.
 
-### 3. Running the WebUI (NEW - v0.1)
+### 3. Running the WebUI
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## Recent Updates (v0.1)
+## Web Application Features (v0.2)
 
-### New: Streamlit WebUI (`app.py`)
-A fully functional web interface with:
+The `app.py` provides a comprehensive interface for the project.
 
-#### Features:
-- **🔍 Email Analysis Tab**: Analyze emails for spam detection and reply generation
-- **📋 History Tab**: View past analyses with timestamps and generated replies
-- **⚙️ Settings Tab**: Configure models, thresholds, and advanced options
+### Features:
+- **🔍 Email Analysis**: 
+    - Input sender, date, subject, and body.
+    - Real-time spam detection using a fine-tuned BERT model.
+    - Intelligent reply generation (currently using mock/generic responses, ready for LLM integration).
+- **📋 History Tracking**: 
+    - Automatically saves analysis results.
+    - View past emails, classification status, and generated replies.
+    - Clear history functionality.
+- **⚙️ Configuration**: 
+    - Settings for model selection and thresholds (UI placeholders).
+    - Toggle options for auto-save and confidence display.
 
-#### Current Implementation:
-- **Mock Spam Classifier**: Random classification (70-99% confidence) - ready for model integration
-- **Mock LLM Generator**: Generic predetermined responses - ready for actual model integration
-- Session state management for analysis history
-- Professional UI with color-coded badges and styling
-- Copy/download functionality for generated replies
+### Current Model Implementation:
+- **Spam Classifier**: 
+    - **Primary**: Fine-tuned `bert-base-uncased` model.
+    - **Logic**: Loads model from `spam_classifier_model/`. If not found, falls back to a mock classifier for demonstration purposes.
+    - **Preprocessing**: Includes text cleaning (URL removal, special char removal) and tokenization.
+- **Reply Generator**: 
+    - **Current**: Mock LLM Generator producing generic professional responses.
+    - **Future**: Integration with the fine-tuned GPT-2/DistilGPT-2 models from `train.py`.
 
-#### Integration Points:
-To integrate your actual models:
-1. Replace `MockSpamClassifier.predict()` in `app.py` with your trained spam detection model
-2. Replace `MockLLMReplyGenerator.generate_reply()` with your fine-tuned GPT-2/DistilGPT-2
-3. Update model loading logic in the Settings tab
-
-### New: Requirements File (`requirements.txt`)
-Added comprehensive dependencies list for easy setup.
+### Usage Workflow:
+1.  Launch the app.
+2.  Enter email details in the "Analyze Email" tab.
+3.  Click "Analyze Email".
+4.  If the email is **Legitimate**, a reply suggestion is generated.
+5.  If the email is **Spam**, it is flagged with a confidence score.
+6.  Results can be copied or downloaded as text files.
 
 ## Dependencies
 - streamlit >= 1.28.0
