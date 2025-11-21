@@ -6,12 +6,10 @@ A skeleton app with mock spam detection and LLM-based reply generation
 import streamlit as st
 import random
 from datetime import datetime
-import time
 import torch
-import torch.nn as nn
 import re
 import os
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, AutoModelForCausalLM
 
 # Set page configuration
 st.set_page_config(
@@ -87,6 +85,32 @@ def load_spam_model():
         return None, None
 
 
+@st.cache_resource
+def load_reply_model():
+    """Load reply generator model and tokenizer from saved files"""
+    model_path = 'reply_generator_model'
+    
+    if not os.path.exists(model_path):
+        st.warning(f"⚠️ Reply model not found at {model_path}.")
+        return None, None
+    
+    try:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Load model
+        model = AutoModelForCausalLM.from_pretrained(model_path)
+        model = model.to(device)
+        model.eval()
+        
+        # Load tokenizer
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        
+        return model, tokenizer
+    except Exception as e:
+        st.warning(f"⚠️ Error loading reply model: {e}")
+        return None, None
+
+
 def predict_spam(model, tokenizer, email_text):
     """
     Predict if an email is spam.
@@ -135,30 +159,56 @@ def predict_spam(model, tokenizer, email_text):
         confidence = round(random.uniform(0.7, 0.99), 2)
         return is_spam, confidence
 
-
-# ==================== Mock Models ====================
-
-class MockLLMReplyGenerator:
-    """Mock LLM that generates generic predetermined responses"""
+def generate_reply(model, tokenizer, email_text):
+    """
+    Generate a reply to an email using the fine-tuned GPT-2 model.
+    Returns: reply_text (str)
+    """
+    if model is None or tokenizer is None:
+        return "Unable to generate reply - model not loaded."
     
-    GENERIC_REPLIES = [
-        "Thank you for reaching out! We appreciate your message. We'll review your inquiry and get back to you shortly with a helpful response. Best regards!",
-        "Hello! Thank you for contacting us. We've received your email and will prioritize addressing your concerns. We'll be in touch soon!",
-        "Hi there! Thanks for getting in touch. We're here to help and will respond to your message as soon as possible. Looking forward to assisting you!",
-        "Thank you for your email! We value your communication and will provide you with a detailed response soon. We appreciate your patience!",
-        "Hi! We've received your message and will respond promptly. Thank you for choosing to reach out to us. We're ready to help!",
-    ]
-    
-    @staticmethod
-    def generate_reply(email_text):
-        """
-        Generate a generic reply to a legitimate email.
-        Returns: reply_text (str)
-        """
-        reply = random.choice(MockLLMReplyGenerator.GENERIC_REPLIES)
-        # Simulate processing time
-        time.sleep(1)
-        return reply
+    try:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Create prompt
+        prompt = f"Email: {email_text[:512]}\n\nReply:"
+        
+        # Tokenize
+        inputs = tokenizer(
+            prompt,
+            max_length=256,
+            truncation=True,
+            return_tensors='pt'
+        )
+        
+        # Move to device
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+        
+        # Generate
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=100,
+                temperature=0.7,
+                top_p=0.9,
+                do_sample=True,
+                pad_token_id=tokenizer.eos_token_id
+            )
+        
+        # Decode
+        full_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Extract just the reply part (after "Reply:")
+        if "Reply:" in full_text:
+            reply = full_text.split("Reply:")[-1].strip()
+        else:
+            reply = full_text.strip()
+        
+        return reply if reply else "Thank you for your email. I will respond shortly."
+    except Exception as e:
+        st.warning(f"⚠️ Error generating reply: {e}")
+        return "Unable to generate reply at this time."
+
 
 
 # ==================== Helper Functions ====================
@@ -213,9 +263,11 @@ def save_analysis_to_history(email_sender, email_datetime, email_subject, is_spa
 # ==================== Main App ====================
 
 def main():
-    # Initialize BERT spam classifier
-    model, tokenizer = load_spam_model()
-    llm_generator = MockLLMReplyGenerator()
+    # Initialize spam classifier
+    spam_model, spam_tokenizer = load_spam_model()
+    
+    # Initialize reply generator model
+    reply_model, reply_tokenizer = load_reply_model()
     
     # Initialize session state
     if 'analysis_result' not in st.session_state:
@@ -280,8 +332,8 @@ def main():
                 st.error("❌ Please enter sender, subject, date & time, and email body!")
             else:
                 with st.spinner("🔄 Analyzing email..."):
-                    # Mock spam classification
-                    is_spam, confidence = predict_spam(model, tokenizer, email_body)
+                    # Spam classification
+                    is_spam, confidence = predict_spam(spam_model, spam_tokenizer, email_body)
                     st.session_state.analysis_result = {
                         'is_spam': is_spam,
                         'confidence': confidence
@@ -290,7 +342,7 @@ def main():
                     # Generate reply if not spam
                     if not is_spam:
                         with st.spinner("💭 Generating reply..."):
-                            reply = llm_generator.generate_reply(email_body)
+                            reply = generate_reply(reply_model, reply_tokenizer, email_body)
                             st.session_state.generated_reply = reply
                     else:
                         st.session_state.generated_reply = None
@@ -407,48 +459,27 @@ def main():
         
         with col2:
             st.write("#### Reply Generation")
-            llm_model = st.selectbox(
-                "LLM Model",
-                ["Generic (Mock)", "GPT-2", "DistilGPT-2", "Custom"],
-                help="Select which LLM to use for reply generation"
-            )
-            temperature = st.slider(
-                "Generation Temperature",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.7,
-                step=0.1,
-                help="Higher values = more creative replies, lower = more deterministic"
-            )
-        
-        st.write("---")
-        st.write("### Advanced Options")
-        
-        show_confidence = st.checkbox("Show detailed confidence scores", value=True)
-        auto_save = st.checkbox("Auto-save analysis history", value=True)
-        
-        if st.button("💾 Save Configuration", use_container_width=True):
-            st.success("✅ Settings saved successfully!")
+            st.info("Using fine-tuned GPT-2 model")
         
         st.write("---")
         st.write("### About")
         st.markdown(
             """
-            **Spam Email Analyzer & Reply Generator v0.3**
+            **Spam Email Analyzer & Reply Generator v0.4**
             
             This application uses AI models to:
             - 🔍 Detect spam emails with high accuracy using fine-tuned DistilBERT
-            - 💭 Generate intelligent replies to legitimate emails
+            - 💭 Generate intelligent replies to legitimate emails using fine-tuned GPT-2
             
-            **Current Status:** DistilBERT spam detector active
+            **Current Status:** Both models active
             - Spam detection: Fine-tuned DistilBERT model ✅
-            - Reply generation: Generic responses (will be replaced with fine-tuned LLM)
+            - Reply generation: Fine-tuned GPT-2 model ✅
             
             **Technology Stack:**
             - Frontend: Streamlit
             - Backend: Python
             - Spam Classifier: DistilBERT (Fine-tuned on Enron spam dataset)
-            - Reply Generator: TBD (Fine-tuned GPT-2/DistilGPT-2)
+            - Reply Generator: GPT-2 (Fine-tuned on synthetic email-reply pairs)
             """
         )
 
