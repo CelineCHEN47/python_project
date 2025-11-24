@@ -1,7 +1,3 @@
-"""
-Streamlit WebUI for Spam Email Analysis and Reply Generation
-A skeleton app with mock spam detection and LLM-based reply generation
-"""
 
 import streamlit as st
 import random
