@@ -17,6 +17,7 @@ from transformers import (
 )
 
 from openai import OpenAI
+import openai
 
 
 # =========================================================
@@ -47,7 +48,7 @@ def call_llm_api(prompt: str, model_name: str, api_key: str) -> str:
             {"role": "user", "content": prompt},
         ],
         temperature=0,
-        max_tokens=256,
+        max_tokens=512,
         **extra_kwargs,
     )
 
@@ -248,7 +249,7 @@ def run_ham_reply_pipeline(
     spam_label_column: str = "Spam/Ham",
     text_column: str = "data",
     max_input_length: int = 256,
-    max_new_tokens: int = 80,
+    max_new_tokens: int = 256,
     temperature: float = 0.7,
     top_p: float = 0.9,
     max_samples_for_scoring: Optional[int] = None,
@@ -289,11 +290,13 @@ def run_ham_reply_pipeline(
 
     df_ham.reset_index(drop=True, inplace=True)
 
-    if max_samples_for_scoring is not None:
-        df_ham = df_ham.head(max_samples_for_scoring).copy()
+    # 固定随机抽样 400 条（用于 reply generation 和 scoring）
+    SAMPLE_SIZE = 400
+    if len(df_ham) > SAMPLE_SIZE:
+        df_ham = df_ham.sample(n=SAMPLE_SIZE, random_state=42, replace=False).copy()
+        df_ham = df_ham.reset_index(drop=True)
 
-    print(f"[HamReply] Using {len(df_ham)} ham emails for reply generation and scoring.")
-
+    print(f"[HamReply] Using {len(df_ham)} ham emails (random sample of 400).")
     # 如果一个 ham 都没有，就不往下跑了，避免除以 0
     if len(df_ham) == 0:
         print("[HamReply] No ham examples found. Please check your label column and values.")
@@ -319,7 +322,7 @@ def run_ham_reply_pipeline(
         incoming = str(row[text_column])
 
         prompt = (
-            "Incoming email:\n"
+            "Email:\n"
             + incoming
             + "\n\nReply:\n"
         )
@@ -363,7 +366,7 @@ def run_ham_reply_pipeline(
     politeness_scores = []
 
     print(f"[HamReply] Scoring responses via LLM: {llm_model_name}")
-    for _, row in tqdm(df_ham.iterrows(), total=len(df_ham)):
+    for idx, row in tqdm(df_ham.iterrows(), total=len(df_ham)):
         incoming = str(row[text_column])
         model_reply = str(row["response"])
 
@@ -373,12 +376,23 @@ def run_ham_reply_pipeline(
             reference_reply=None,  # 对 6k 测试集通常没有参考人工回复
         )
 
-        raw = call_llm_api(prompt, model_name=llm_model_name, api_key=api_key)
-        scores = parse_llm_scores(raw)
+        try:
+            raw = call_llm_api(prompt, model_name=llm_model_name, api_key=api_key)
+            scores = parse_llm_scores(raw)
 
-        fluency_scores.append(scores["fluency"])
-        relevance_scores.append(scores["relevance"])
-        politeness_scores.append(scores["politeness"])
+            fluency_scores.append(scores["fluency"])
+            relevance_scores.append(scores["relevance"])
+            politeness_scores.append(scores["politeness"])
+
+        except openai.BadRequestError as e:
+            # 这里专门处理 data_inspection_failed 或其他请求错误
+            print(f"[HamReply][WARN] Skipping sample at index {idx} due to API error:")
+            print(f"  {e}")
+            # 用 None 占位，后面计算均值时会忽略这些 None
+            fluency_scores.append(None)
+            relevance_scores.append(None)
+            politeness_scores.append(None)
+            continue
 
     df_ham["fluency_score"] = fluency_scores
     df_ham["relevance_score"] = relevance_scores
@@ -389,11 +403,26 @@ def run_ham_reply_pipeline(
     df_ham.to_csv(output_csv, index=False, encoding="utf-8")
     print(f"[HamReply] Saved ham + responses + scores to: {output_csv}")
 
-    print("[HamReply] Mean scores on ham emails:")
-    print(f"  Fluency    : {sum(fluency_scores) / len(fluency_scores):.3f}")
-    print(f"  Relevance  : {sum(relevance_scores) / len(relevance_scores):.3f}")
-    print(f"  Politeness : {sum(politeness_scores) / len(politeness_scores):.3f}")
+    # 计算均值时忽略 None / Compute means ignoring None
+    valid_flu = [s for s in fluency_scores if s is not None]
+    valid_rel = [s for s in relevance_scores if s is not None]
+    valid_pol = [s for s in politeness_scores if s is not None]
 
+    print("[HamReply] Mean scores on ham emails (excluding skipped samples):")
+    if valid_flu:
+        print(f"  Fluency    : {sum(valid_flu) / len(valid_flu):.3f}")
+    else:
+        print("  Fluency    : N/A")
+
+    if valid_rel:
+        print(f"  Relevance  : {sum(valid_rel) / len(valid_rel):.3f}")
+    else:
+        print("  Relevance  : N/A")
+
+    if valid_pol:
+        print(f"  Politeness : {sum(valid_pol) / len(valid_pol):.3f}")
+    else:
+        print("  Politeness : N/A")
 
 # =========================================================
 #                         CLI
@@ -509,7 +538,7 @@ def main():
     ham_reply_p.add_argument(
         "--max_new_tokens",
         type=int,
-        default=80,
+        default=512,
         help="Max new tokens for GPT-2 generation",
     )
     ham_reply_p.add_argument(
