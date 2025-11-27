@@ -58,7 +58,7 @@ def clean_email_text(text):
 @st.cache_resource
 def load_spam_model():
     """Load spam model and tokenizer from saved files"""
-    model_path = 'spam_classifier_model'
+    model_path = './models/spam_classifier_model'
     
     if not os.path.exists(model_path):
         st.warning(f"⚠️ Model not found at {model_path}. Using mock classifier.")
@@ -84,7 +84,7 @@ def load_spam_model():
 @st.cache_resource
 def load_reply_model():
     """Load reply generator model and tokenizer from saved files"""
-    model_path = 'reply_generator_model'
+    model_path = './models/reply_generator_model'
     
     if not os.path.exists(model_path):
         st.warning(f"⚠️ Reply model not found at {model_path}.")

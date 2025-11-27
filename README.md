@@ -57,6 +57,22 @@ python_project/
 
 ---
 
+## 🚀 **Quick Start (Pre-trained Models)**
+
+If you prefer not to train the models from scratch, you can download our pre-trained models:
+
+1.  **Download**: [models.zip](https://hkustgz-my.sharepoint.com/:u:/g/personal/ggogoi543_connect_hkust-gz_edu_cn/IQCEOZxluCUBQ7AKz1GVn0tiAcXZNh4icJRpPz3ARy_F8y0?e=2tMrln)
+2.  **Unzip**: Extract the contents into the project root. Ensure the `models/` folder is created.
+    ```bash
+    unzip models.zip
+    ```
+3.  **Run App**: You can now directly launch the WebUI:
+    ```bash
+    streamlit run app.py
+    ```
+
+---
+
 ## 📌 **1. Model Training & Experiments**
 
 ### **A. Local Training**
