@@ -82,5 +82,5 @@ eval_results = trainer.evaluate()
 print(f"Evaluation results: {eval_results}")
 
 # 9. Save Model
-trainer.save_model("./spam_classifier_model")
-print("Model saved to ./spam_classifier_model")
+trainer.save_model("./models/spam_classifier_model")
+print("Model saved to ./models/spam_classifier_model")

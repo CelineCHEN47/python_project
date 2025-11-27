@@ -73,7 +73,7 @@ print("Starting training...")
 trainer.train()
 
 # 6. Save
-output_dir = "./reply_generator_model"
+output_dir = "./models/reply_generator_model"
 print(f"Saving model to {output_dir}...")
 trainer.save_model(output_dir)
 tokenizer.save_pretrained(output_dir)

@@ -5,3 +5,6 @@ datasets
 peft
 evaluate
 tqdm
+nltk
+scikit-learn
+openai
