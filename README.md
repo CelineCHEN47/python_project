@@ -1,4 +1,9 @@
-# Spam Email Analysis & Reply Generation Project
+# SmartMail - An integrated system for spam detection and email reply​
+
+## Team Members
+- Ghanibhuti Gogoi (50014104)
+- Yuhan Chen (50013198)
+- Siqi Chen (50012493)
 
 ## Project Overview
 This project analyzes emails for spam detection and generates intelligent replies using fine-tuned LLMs. It includes backend AI models (BERT, GPT-2), comprehensive evaluation pipelines, and a user-friendly Streamlit WebUI.
