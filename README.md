@@ -78,6 +78,48 @@ If you prefer not to train the models from scratch, you can download our pre-tra
 
 ---
 
+## 📌 **Data Augmentation**
+
+Implemented in **`experiments/data_augmentation.py`**
+
+### ✔ Supported Strategies
+
+The script uses lightweight EDA-style augmentation:
+
+- **Synonym Replacement** — replace up to *n* non-stopwords with WordNet synonyms
+- **Random Deletion** — remove each word with probability *p*
+- **Combined EDA** — randomly choose synonym / deletion / both
+
+### ✔ Augmentation Modes
+
+- `spam`: augment only the **Message** field in *enron_spam_data.csv*
+- `reply`: augment only the **incoming Message** (not the reply) for reply-generation dataset
+
+### ✔ Example Command
+
+```bash
+# For the spam classification dataset
+python experiments/data_augmentation.py \
+  --task spam \
+  --input data/classification/enron_spam_data.csv \
+  --output data/classification/enron_spam_data_augmented.csv \
+  --num_aug 1 \
+  --synonym_n 1 \
+  --deletion_p 0.1
+
+# For the reply generation dataset
+python experiments/data_augmentation.py \
+  --task reply \
+  --input data/classification/synthetic_reply_dataset.csv \
+  --output data/classification/synthetic_reply_dataset_augmented.csv \
+  --num_aug 1 \
+  --augment_mode eda_incoming \
+  --synonym_n 1 \
+  --deletion_p 0.1
+```
+
+---
+
 ## 📌 **1. Model Training & Experiments**
 
 ### **A. Local Training**
